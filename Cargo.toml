@@ -1,0 +1,10 @@
+[package]
+name = "lp5569"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+colored = "2.0.0"
+docopt = "1.1.1"
+i2cdev = "0.6.2"
+serde = "1.0.229"
