@@ -154,8 +154,7 @@ impl Lp5569 {
     pub fn new<P: AsRef<Path>>(path: P, i2c_address: u16) -> Result<Lp5569, LinuxI2CError> {
         println!("Open i2c device at {} address {:#04x}", path.as_ref().display(), i2c_address);
         let device = LinuxI2CDevice::new(path, i2c_address)?;
-        let mut lp5569 = Lp5569 { device };
-        lp5569.reset()?;
+        let lp5569 = Lp5569 { device };
 
         Ok(lp5569)
     }
@@ -196,7 +195,7 @@ impl Lp5569 {
         }
     }
 
-    fn reset(&mut self) -> Result<(), LinuxI2CError> {
+    pub fn reset(&mut self) -> Result<(), LinuxI2CError> {
         self.write_byte(Lp5569Reg::Reset, 0xFF)?;
         self.write_byte(Lp5569Reg::Misc, REG_MISC_DEFAULT)?;
         self.write_byte(Lp5569Reg::Config, REG_CONFIG_ENABLE)?;

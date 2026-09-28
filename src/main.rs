@@ -1,6 +1,6 @@
 use crate::i2c::lp5569::{Led, Lp5569, Rgb};
 
-use serde::{Deserialize};
+use serde::Deserialize;
 
 use docopt::Docopt;
 use std::env::args;
@@ -19,6 +19,7 @@ Usage:
 Options:
   -b --bus BUS               Specify the I2C bus to use [default: 1].
   -i --i2c-address=<addr>    I2C slave address [default: 50].
+  -r --reset                 Reset the LP5569 device before performing any operations.
   -h --help                  Show this help text.
   --version                  Show version.
 ";
@@ -32,6 +33,7 @@ struct Args {
     arg_blue: u8,
     flag_i2c_address: u16,
     flag_bus: u8,
+    flag_reset: bool,
 }
 
 fn main() {
@@ -43,38 +45,50 @@ fn main() {
         })
         .unwrap_or_else(|e| e.exit());
 
-    if !args.cmd_rgb {
+    if !args.cmd_rgb && !args.flag_reset {
         println!("{}", USAGE);
         return;
     }
 
     let i2c_bus = format!("/dev/i2c-{}", args.flag_bus);
+
+    let mut lp5569 = match Lp5569::new(i2c_bus, args.flag_i2c_address) {
+        Ok(device) => device,
+        Err(err) => {
+            eprintln!("could not open i2c device: {:?}", err);
+            std::process::exit(1);
+        }
+    };
+
+    if args.flag_reset {
+        match lp5569.reset() {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("Failed to reset LP5569 device: {:?}", err);
+                std::process::exit(1);
+            }
+        }
+    }
+
     if args.cmd_rgb {
-		let led_reg = match args.arg_led {
-			0 => Led::Led0,
-			1 => Led::Led1,
-			2 => Led::Led2,
-			led => {
-				eprintln!("Invalid LED {led}, expected 0, 1 or 2");
-				std::process::exit(1);
-			}
-		};
+        let led_reg = match args.arg_led {
+            0 => Led::Led0,
+            1 => Led::Led1,
+            2 => Led::Led2,
+            led => {
+                eprintln!("Invalid LED {led}, expected 0, 1 or 2");
+                std::process::exit(1);
+            }
+        };
+
         let led_color = Rgb {
             red: args.arg_red,
             green: args.arg_green,
             blue: args.arg_blue,
         };
 
-		let mut lp5569 = match Lp5569::new(i2c_bus, args.flag_i2c_address) {
-			Ok(device) => device,
-			Err(err) => {
-				eprintln!("could not open i2c device: {:?}", err);
-				std::process::exit(1);
-			}
-		};
-
         match lp5569.set_rgb(led_reg, led_color) {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(err) => {
                 eprintln!("Failed to set RGB color: {:?}", err);
                 std::process::exit(1);
