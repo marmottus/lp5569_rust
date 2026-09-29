@@ -1,4 +1,4 @@
-use crate::i2c::lp5569::{Led, Lp5569, Rgb};
+use i2c::lp5569::{Led, Lp5569, Rgb};
 
 use serde::Deserialize;
 
@@ -13,6 +13,7 @@ Control the LP5569 LED driver
 Usage:
   lp5569 [options]
   lp5569 [options] rgb <led> <red> <green> <blue>
+  lp5569 pulse <led> <red> <green> <blue> <pwm> <ramp>
   lp5569 (-h | --help)
   lp5569 (-v | --version)
 
@@ -27,10 +28,13 @@ Options:
 #[derive(Debug, Deserialize)]
 struct Args {
     cmd_rgb: bool,
+    cmd_pulse: bool,
     arg_led: u8,
     arg_red: u8,
     arg_green: u8,
     arg_blue: u8,
+    arg_pwm: u8,
+    arg_ramp: u32,
     flag_i2c_address: u16,
     flag_bus: u8,
     flag_reset: bool,
@@ -45,7 +49,7 @@ fn main() {
         })
         .unwrap_or_else(|e| e.exit());
 
-    if !args.cmd_rgb && !args.flag_reset {
+    if !args.cmd_rgb && !args.flag_reset && !args.cmd_pulse {
         println!("{}", USAGE);
         return;
     }
@@ -71,7 +75,7 @@ fn main() {
     }
 
     if args.cmd_rgb {
-        let led_reg = match args.arg_led {
+        let led = match args.arg_led {
             0 => Led::Led0,
             1 => Led::Led1,
             2 => Led::Led2,
@@ -87,10 +91,35 @@ fn main() {
             blue: args.arg_blue,
         };
 
-        match lp5569.set_rgb(led_reg, led_color) {
+        match lp5569.set_rgb(&led, led_color) {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("Failed to set RGB color: {:?}", err);
+                std::process::exit(1);
+            }
+        }
+    } else if args.cmd_pulse {
+        let led = match args.arg_led {
+            0 => Led::Led0,
+            1 => Led::Led1,
+            2 => Led::Led2,
+            led => {
+                eprintln!("Invalid LED {led}, expected 0, 1 or 2");
+                std::process::exit(1);
+            }
+        };
+
+        match lp5569.set_pulse(
+            &led,
+            args.arg_red != 0,
+            args.arg_green != 0,
+            args.arg_blue != 0,
+            args.arg_pwm,
+            args.arg_ramp,
+        ) {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("Failed to set pulse: {:?}", err);
                 std::process::exit(1);
             }
         }
