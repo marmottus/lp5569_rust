@@ -145,8 +145,6 @@ const LED_RED_CURRENT: u8 = 10; // 1 mA
 const LED_GREEN_CURRENT: u8 = 3; // 0.3 mA
 const LED_BLUE_CURRENT: u8 = 8; // 0.8 mA
 
-pub const LP5569_SLAVE_ADDR: u16 = 0x32;
-
 const LED_ENGINE_CONTROL1_FREE_RUN: u8 = 0b10;
 
 const LED_ENGINE_CONTROL2_LOAD_PROGRAM: u8 = 0b01;
@@ -164,16 +162,30 @@ const PRESCALE1_CLK: u16 = 32768 / 512;
 const PRESCALE0: f32 = 1. / (PRESCALE0_CLK as f32);
 const PRESCALE1: f32 = 1. / (PRESCALE1_CLK as f32);
 
+// 1 0 0 1 1 1 1 1 1 SRAM_ADDR[6-0]
 const MAP_ADDR_OPCODE: u16 = 0b10011111_10000000;
+
+// 0 1 0 0 0 0 0 0 PWM[7-0]
 const SET_PWM_OPCODE: u16 = 0b01000000_00000000;
+
+// 1 0 1 LOOP_CNT[12-7] STEP_NUM[6-0]
+// Step number is relative to the program start address.
 const BRANCH_OPCODE: u16 = 0b10100000_00000000;
+
+// 1 1 0 int[12] reset[11] 0 0 0 0 0 0 0 0 0 0 0
 const END_OPCODE: u16 = 0b11000000_00000000;
+
+// 0 PRESCALE[14] STEP_TIME[13-9] SIGN[8] NUM_INC[7-0]
+const RAMP_OPCODE: u16 = 0b00000000_00000000;
+const RAMP_NEGATIVE_MASK: u16 = 1 << 8;
+
+// 0 PRESCALE[14]
+const WAIT_OPCODE: u16 = 0b00000000_00000000;
 
 const PRESCALE_MASK: u16 = 1 << 14;
 const TIME_SHIFT: u8 = 9;
 
-const RAMP_NEGATIVE_MASK: u16 = 1 << 8;
-
+// LP5569 has 16-instructions of 2 bytes per page in its SRAM.
 const PAGE_SIZE: u8 = 16;
 
 #[derive(Debug)]
@@ -207,7 +219,7 @@ fn get_prescaled_cmd(time: f32) -> Result<u16, Lp5569Error> {
 }
 
 fn cmd_wait(time: f32) -> Result<u16, Lp5569Error> {
-    get_prescaled_cmd(time)
+    Ok(get_prescaled_cmd(time)? | WAIT_OPCODE)
 }
 
 fn cmd_ramp(time: f32, pwm: i16) -> Result<u16, Lp5569Error> {
@@ -215,10 +227,10 @@ fn cmd_ramp(time: f32, pwm: i16) -> Result<u16, Lp5569Error> {
     let prescaled_cmd = get_prescaled_cmd(step_time)?;
 
     if pwm < 0 {
-        return Ok(prescaled_cmd | RAMP_NEGATIVE_MASK | pwm.abs() as u16);
+        return Ok(RAMP_OPCODE | prescaled_cmd | RAMP_NEGATIVE_MASK | pwm.abs() as u16);
     }
 
-    Ok(prescaled_cmd | pwm as u16)
+    Ok(RAMP_OPCODE | prescaled_cmd | pwm as u16)
 }
 
 pub struct Lp5569 {
